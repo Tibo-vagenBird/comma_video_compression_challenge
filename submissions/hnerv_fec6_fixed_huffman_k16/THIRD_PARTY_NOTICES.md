@@ -45,14 +45,14 @@ the contest repository:
   PR #101's grammar emits. Consumed via the `brotli` PyPI package
   (https://github.com/google/brotli, MIT license).
 - **Canonical Huffman** — the FEC6 selector adds a fixed 16-symbol Huffman
-  codebook for per-frame mode indices. The codebook is encoder-known and
+  codebook for per-pair mode indices over per-frame transforms. The codebook is encoder-known and
   decoder-known; it is **not** transmitted in the archive. Decoder code lives
   in `src/frame_selector.py`.
 
 ## This submission's contributions
 
 - `src/frame_selector.py` — FEC6 selector grammar + decoder for the K=16
-  fixed-Huffman per-frame mode index. New code.
+  fixed-Huffman per-pair mode index. New code.
 - `encoder/frame_exploit_segnet_posenet_sweep.py` — offline scorer-sweep tool
   that ranks 31 candidate per-frame transforms against the upstream contest
   scorer. New code.
@@ -60,7 +60,7 @@ the contest repository:
   selects K=16 modes from the sweep table and packs the submission's
   `archive.zip`. New code.
 - `inflate.py` — composes the PR #101 inverse pipeline with the FEC6
-  selector's per-frame mode dispatch.
+  selector's per-pair mode dispatch.
 
 All new code is MIT-licensed under the same terms as the contest repository
 (see `LICENSE`).

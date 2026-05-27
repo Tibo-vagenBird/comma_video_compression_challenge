@@ -22,8 +22,10 @@ Required:
   --output-dir DIR       Where the bundled encoder writes the rebuilt
                          submission tree (`archive.zip` + `inflate.sh` + runtime).
 
-Extra flags accepted by the encoder (e.g. `--selector-policy-mode
-compact_exact_k16`, `--compact-selector-codec fec6`) pass through.
+Extra flags accepted by the encoder pass through. For the submitted archive,
+also pass `--overlay-artifact-dir DIR`, `--selector-policy-mode compact_exact_k16`,
+`--compact-selector-codec fec6_fixed_huffman_k16`, and
+`--allow-nonpositive-charged-proxy`; see encoder/README.md.
 USAGE
 }
 
