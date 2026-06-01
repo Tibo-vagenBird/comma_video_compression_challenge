@@ -1,6 +1,0 @@
-# Runtime dependencies for inflate.py.
-# Pin versions matched what was used to produce the canonical 0.raw SHA
-# (d1afc583b01ff4a7aaa844d4f03ece3ed381d56763a06cb2c5e011526e5f868c)
-# during the contest CPU evaluation on 2026-05-20.
-torch>=2.5.0
-brotli>=1.1.0
