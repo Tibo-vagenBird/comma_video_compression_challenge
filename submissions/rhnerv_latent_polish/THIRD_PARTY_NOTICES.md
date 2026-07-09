@@ -79,10 +79,12 @@ runtime to PR #112 (`rhnerv_comma`), minus the now-unused sidecar path.
   sidecar corrections into the stored codes (removing the 607-byte sidecar).
 - `inflate.py` container parsing without the sidecar branch.
 
+- `compress.py` / `compress.sh` — a deterministic encoder that re-runs the ctx
+  coder on the raw inputs in `encoder/` to rebuild `archive.zip` byte-for-byte.
+
 Inflate-time dependencies are `numpy`, `torch`, and **constriction**
 (https://github.com/bamler-lab/constriction, MIT/Apache-2.0/BSL; range-coding
-primitives used by the ctx coder), all in the harness base env. This
-submission ships no compression/encoder script.
+primitives used by the ctx coder), all in the harness base env.
 
 ## Concurrent independent work
 

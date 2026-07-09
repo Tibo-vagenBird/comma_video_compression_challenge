@@ -32,7 +32,8 @@ possible one-step adjustments found zero improving moves).
 | seg / pose | `0.00054527` / `0.00002943` |
 | rate | `0.00470179` (176,531 / 37,545,489) |
 | Archive bytes | `176531` (#112: 177,136; −605 B, seg −2.7%, pose unchanged) |
-| Archive SHA-256 | `6526845995780a4267ce94d3b9de4e277e05e2aa8f07fc7cb1490ebba5a3de2c` |
+| Archive SHA-256 | `ab73259395f9f87e0ca62623746095208bca7d33b272c6740336e69ca73fc01e` |
+| Member SHA-256 | `5f0ade2878c10ab71c1fbcaa9c16755c00a882237df9374a8e325dac37e57e06` |
 | ZIP members | 1 (`x`, `compression_type=0` ZIP_STORED, 176,431 bytes) |
 | Member layout | ctx container (7-B header + decoder 161,104 + latents + selector); **no trailing sidecar** |
 | Inflate runtime deps | `numpy`, `torch`, `constriction` (harness base env) |
@@ -62,6 +63,10 @@ bash evaluate.sh --submission-dir ./submissions/rhnerv_latent_polish --device cp
 | Path | Role |
 |---|---|
 | `inflate.sh`, `inflate.py` | Contest-runtime decoder (#112 chain minus the sidecar branch). |
+| `compress.sh`, `compress.py` | Deterministic encoder: re-runs the ctx coder on `encoder/` inputs to rebuild `archive.zip` byte-for-byte (asserts member + archive SHA-256). |
+| `encoder/decoder_streams.bin` | Raw HNeRV decoder weight streams, verbatim #101/#95 (frozen). |
+| `encoder/selector_payload.bin` | Raw FEC6 selector wire payload, verbatim #110 (frozen). |
+| `encoder/polished_latent_raw.bin` | This submission's polished per-pair latent payload (sidecar folded in; ~1,565 verified ±1 code steps). |
 | `codec_ctx.py` | #112's context-modeled range coder (verbatim). |
 | `codec.py` | #101 tensor reconstruction (verbatim #112 copy). |
 | `frame_selector.py` | #110 FEC6 selector module (verbatim). |
