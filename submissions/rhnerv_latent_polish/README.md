@@ -13,27 +13,31 @@ both confined to the stored latent codes:
 
 1. **Sidecar folded in**: PR #101's 607-byte latent-correction sidecar is
    absorbed into the stored 8-bit latent codes and dropped from the archive.
-2. **~1,565 one-step latent code adjustments**, found by a discrete search
-   in which every candidate ±1-step adjustment was scored with the official
+2. **1,802 net latent code changes (±1/±2 grid steps)**, found by a discrete
+   search in which every candidate step was scored with the official
    SegNet/PoseNet evaluators and the real re-encoded archive size, and kept
    only if the exact contest score improved. A single adjustment affects only
    its own frame pair, so candidates were evaluated exactly (600 per batched
    render) rather than estimated; accepted sets compose exactly across pairs.
    No gradient step was ever applied to stored values; no new training.
 
-The search plateaued after 14 rounds (a final full sweep of all 33,600
-possible one-step adjustments found zero improving moves).
+The search ran in two stages: a ±1-step search to plateau (14 rounds), then
+a re-selection pass **on the CPU axis** (the leaderboard axis; fp32, fixed
+batch layout) with ±1 and ±2 steps, which re-audits earlier steps (a
+reversal is just a step in the opposite direction) and removes the
+GPU-vs-CPU bicubic-LSB selection bias. See `METHOD.md` for a step-by-step
+walkthrough with a worked example.
 
 ## Archive identity
 
 | Field | Value |
 |---|---|
-| Score (CPU, full precision) | `0.189227` = 100·seg + sqrt(10·pose) + 25·rate |
-| seg / pose | `0.00054527` / `0.00002943` |
+| Score (CPU, full precision) | `0.188532` = 100·seg + sqrt(10·pose) + 25·rate |
+| seg / pose | `0.00053838` / `0.00002941` |
 | rate | `0.00470179` (176,531 / 37,545,489) |
-| Archive bytes | `176531` (#112: 177,136; −605 B, seg −2.7%, pose unchanged) |
-| Archive SHA-256 | `ab73259395f9f87e0ca62623746095208bca7d33b272c6740336e69ca73fc01e` |
-| Member SHA-256 | `5f0ade2878c10ab71c1fbcaa9c16755c00a882237df9374a8e325dac37e57e06` |
+| Archive bytes | `176531` (#112: 177,136; −605 B, seg −3.9%, pose −0.1%) |
+| Archive SHA-256 | `fae8d338f4fe4090ac6d74ccc9528d9b3f898f874090ed843ae195a6fc1ce65b` |
+| Member SHA-256 | `acd54e8bcfd08f8b1f62ba07f05ae4f2111585aa537d6270be83c6884db9ee04` |
 | ZIP members | 1 (`x`, `compression_type=0` ZIP_STORED, 176,431 bytes) |
 | Member layout | ctx container (7-B header + decoder 161,104 + latents + selector); **no trailing sidecar** |
 | Inflate runtime deps | `numpy`, `torch`, `constriction` (harness base env) |
@@ -66,7 +70,8 @@ bash evaluate.sh --submission-dir ./submissions/rhnerv_latent_polish --device cp
 | `compress.sh`, `compress.py` | Deterministic encoder: re-runs the ctx coder on `encoder/` inputs to rebuild `archive.zip` byte-for-byte (asserts member + archive SHA-256). |
 | `encoder/decoder_streams.bin` | Raw HNeRV decoder weight streams, verbatim #101/#95 (frozen). |
 | `encoder/selector_payload.bin` | Raw FEC6 selector wire payload, verbatim #110 (frozen). |
-| `encoder/polished_latent_raw.bin` | This submission's polished per-pair latent payload (sidecar folded in; ~1,565 verified ±1 code steps). |
+| `encoder/polished_latent_raw.bin` | This submission's polished per-pair latent payload (sidecar folded in; 1,802 net verified ±1/±2 code steps across 577 of 600 pairs). |
+| `METHOD.md` | Step-by-step method walkthrough with a worked example. |
 | `codec_ctx.py` | #112's context-modeled range coder (verbatim). |
 | `codec.py` | #101 tensor reconstruction (verbatim #112 copy). |
 | `frame_selector.py` | #110 FEC6 selector module (verbatim). |

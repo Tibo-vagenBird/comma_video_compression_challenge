@@ -11,7 +11,8 @@ Re-runs the PR #112 context range coder (`codec_ctx`) on three raw inputs in
                            identical to PR #110 (verbatim, frozen).
   polished_latent_raw.bin- THIS submission's contribution: the per-pair latent
                            payload after exact-score-gated discrete polish
-                           (sidecar folded in; ~1,565 verified +-1 code steps).
+                           (sidecar folded in; 1,802 net code changes from
+                           verified +-1/+-2 steps, selected on the CPU axis).
 
 encode_decoder_section / encode_selector_section are deterministic and
 reproduce PR #112's exact decoder and selector sections; encode_latent_section
@@ -37,8 +38,8 @@ ENC = HERE / "encoder"
 OUT = HERE / "archive.zip"
 
 # integrity anchors (checked at build time)
-EXPECTED_MEMBER_SHA = "5f0ade2878c10ab71c1fbcaa9c16755c00a882237df9374a8e325dac37e57e06"
-EXPECTED_ARCHIVE_SHA = "ab73259395f9f87e0ca62623746095208bca7d33b272c6740336e69ca73fc01e"
+EXPECTED_MEMBER_SHA = "acd54e8bcfd08f8b1f62ba07f05ae4f2111585aa537d6270be83c6884db9ee04"
+EXPECTED_ARCHIVE_SHA = "fae8d338f4fe4090ac6d74ccc9528d9b3f898f874090ed843ae195a6fc1ce65b"
 EXPECTED_ARCHIVE_BYTES = 176_531
 
 

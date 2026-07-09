@@ -6,7 +6,7 @@ document acknowledges the upstream contributions and identifies the
 corresponding files in this submission.
 
 This submission modifies only the stored latent codes: PR #101's 607-byte
-sidecar corrections are folded into them, and ~1,565 further one-step code
+sidecar corrections are folded into them, and 1,802 net one- and two-step code
 adjustments were applied, each verified against the exact contest score.
 Decoder weight bytes remain byte-identical to PR #101/#98/#95, the FEC6
 selector to PR #110, and the container/entropy-coding layer plus decode
@@ -72,7 +72,7 @@ runtime to PR #112 (`rhnerv_comma`), minus the now-unused sidecar path.
 
 ## This submission's contributions
 
-- The ~1,565 one-step latent-code adjustments themselves, found by an
+- The 1,802 net latent-code adjustments (±1/±2 grid steps, CPU-axis selected) themselves, found by an
   exact-score-gated discrete search (every candidate adjustment was scored
   with the official SegNet/PoseNet evaluators and the real re-encoded archive
   size; only exact improvements were kept), and the folding of PR #101's
@@ -92,8 +92,9 @@ A per-pair latent-polish idea appears concurrently in PR #125 (`hnerv_qlp`)
 and in another open PR using an exact-grid quantization-aware gradient polish.
 Those approaches optimize the same latent codes by **gradient descent** through
 the inflate chain; this submission instead uses an **exact-score-gated
-discrete search** (axis-aligned ±1 code steps, each accepted only on a
-verified improvement of the official contest score). The submissions were
+discrete search** (axis-aligned ±1/±2 code steps, each accepted only on a
+verified improvement of the official contest score, selected on the CPU
+leaderboard axis). The submissions were
 developed independently; this note acknowledges the parallel direction.
 
 All new code is MIT-licensed under the same terms as the contest repository.
