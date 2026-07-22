@@ -152,6 +152,21 @@ The official evaluation has a time limit of 30 minutes. Pick your runtime: githu
    <td>
    </td>
    <td>
+    0.172
+   </td>
+   <td>
+    semantic-pose-HPAC_CPR1
+   </td>
+   <td>
+    <a href="https://github.com/commaai/comma_video_compression_challenge/pull/130" target="_blank">
+     #130
+    </a>
+   </td>
+  </tr>
+  <tr>
+   <td>
+   </td>
+   <td>
     0.187
    </td>
    <td>
@@ -160,6 +175,21 @@ The official evaluation has a time limit of 30 minutes. Pick your runtime: githu
    <td>
     <a href="https://github.com/commaai/comma_video_compression_challenge/pull/128" target="_blank">
      #128
+    </a>
+   </td>
+  </tr>
+  <tr>
+   <td>
+   </td>
+   <td>
+    0.190
+   </td>
+   <td>
+    qlp_exactgrid
+   </td>
+   <td>
+    <a href="https://github.com/commaai/comma_video_compression_challenge/pull/129" target="_blank">
+     #129
     </a>
    </td>
   </tr>
