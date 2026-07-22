@@ -1,0 +1,240 @@
+residue
+
+CoolChicEncoder(
+  (latent_grids): ParameterList(
+      (0): Parameter containing: [torch.float32 of size 1x1x384x512]
+      (1): Parameter containing: [torch.float32 of size 1x1x192x256]
+      (2): Parameter containing: [torch.float32 of size 1x1x96x128]
+      (3): Parameter containing: [torch.float32 of size 1x1x48x64]
+      (4): Parameter containing: [torch.float32 of size 1x1x24x32]
+      (5): Parameter containing: [torch.float32 of size 1x1x24x32]
+      (6): Parameter containing: [torch.float32 of size 1x1x12x16]
+      (7): Parameter containing: [torch.float32 of size 1x1x12x16]
+      (8): Parameter containing: [torch.float32 of size 1x1x6x8]
+      (9): Parameter containing: [torch.float32 of size 1x1x6x8]
+  )
+  (arm): Arm(
+    (mlp): Sequential(
+      (0): ArmLinear()
+      (1): ReLU()
+      (2): ArmLinear()
+      (3): ReLU()
+      (4): ArmLinear()
+    )
+    (stabiliser_branch): ArmLinear()
+  )
+  (synthesis): Synthesis(
+    (output_transform): SynthesisConv2d()
+    (stabiliser_branch): SynthesisConv2d()
+    (main_branch): Sequential(
+      (0): SynthesisConv2d()
+      (1): ReLU()
+      (2): SynthesisConv2d()
+      (3): Identity()
+      (4): SynthesisConv2d()
+      (5): Identity()
+    )
+  )
+  (upsampling): Upsampling(
+    (conv_transpose2ds): ModuleList(
+      (0-5): 6 x ParametrizedUpsamplingSeparableSymmetricConvTranspose2d(
+        (parametrizations): ModuleDict(
+          (weight): ParametrizationList(
+            (0): _Parameterization_Symmetric_1d()
+          )
+        )
+      )
+    )
+    (conv2ds): ModuleList(
+      (0-5): 6 x ParametrizedUpsamplingSeparableSymmetricConv2d(
+        (parametrizations): ModuleDict(
+          (weight): ParametrizationList(
+            (0): _Parameterization_Symmetric_1d()
+          )
+        )
+      )
+    )
+  )
+  (ifce): Ifce(
+    (arms): ModuleList(
+      (0-2): 3 x Arm(
+        (mlp): Sequential(
+          (0): ArmLinear()
+        )
+      )
+    )
+  )
+)
+
+| module                             | #parameters or shape   | #flops   |
+|:-----------------------------------|:-----------------------|:---------|
+| model                              | 0.264M                 | 0.175G   |
+| latent_grids                       | 0.263M                 |          |
+| latent_grids.0                     | (1, 1, 384, 512)       |          |
+| latent_grids.1                     | (1, 1, 192, 256)       |          |
+| latent_grids.2                     | (1, 1, 96, 128)        |          |
+| latent_grids.3                     | (1, 1, 48, 64)         |          |
+| latent_grids.4                     | (1, 1, 24, 32)         |          |
+| latent_grids.5                     | (1, 1, 24, 32)         |          |
+| latent_grids.6                     | (1, 1, 12, 16)         |          |
+| latent_grids.7                     | (1, 1, 12, 16)         |          |
+| latent_grids.8                     | (1, 1, 6, 8)           |          |
+| latent_grids.9                     | (1, 1, 6, 8)           |          |
+| arm                                | 0.364K                 | 88.414M  |
+| arm.mlp                            | 0.338K                 | 82.098M  |
+| arm.mlp.0                          | 0.156K                 | 37.892M  |
+| arm.mlp.2                          | 0.156K                 | 37.892M  |
+| arm.mlp.4                          | 26                     | 6.315M   |
+| arm.stabiliser_branch              | 26                     | 6.315M   |
+| arm.stabiliser_branch.weight       | (2, 12)                |          |
+| arm.stabiliser_branch.bias         | (2,)                   |          |
+| synthesis                          | 0.396K                 | 71.565M  |
+| synthesis.output_transform         | 20                     | 3.146M   |
+| synthesis.output_transform.weight  | (4, 4, 1, 1)           |          |
+| synthesis.output_transform.bias    | (4,)                   |          |
+| synthesis.stabiliser_branch        | 32                     | 5.505M   |
+| synthesis.stabiliser_branch.weight | (4, 7, 1, 1)           |          |
+| synthesis.stabiliser_branch.bias   | (4,)                   |          |
+| synthesis.main_branch              | 0.344K                 | 62.915M  |
+| synthesis.main_branch.0            | 0.128K                 | 22.02M   |
+| synthesis.main_branch.2            | 68                     | 12.583M  |
+| synthesis.main_branch.4            | 0.148K                 | 28.312M  |
+| upsampling                         | 60                     | 13.034M  |
+| upsampling.conv_transpose2ds       | 30                     | 9.365M   |
+| upsampling.conv_transpose2ds.0     | 5                      | 2.56K    |
+| upsampling.conv_transpose2ds.1     | 5                      | 14.848K  |
+| upsampling.conv_transpose2ds.2     | 5                      | 72.192K  |
+| upsampling.conv_transpose2ds.3     | 5                      | 0.34M    |
+| upsampling.conv_transpose2ds.4     | 5                      | 1.587M   |
+| upsampling.conv_transpose2ds.5     | 5                      | 7.348M   |
+| upsampling.conv2ds                 | 30                     | 3.669M   |
+| upsampling.conv2ds.0               | 5                      | 2.688K   |
+| upsampling.conv2ds.1               | 5                      | 10.752K  |
+| upsampling.conv2ds.2               | 5                      | 43.008K  |
+| upsampling.conv2ds.3               | 5                      | 0.172M   |
+| upsampling.conv2ds.4               | 5                      | 0.688M   |
+| upsampling.conv2ds.5               | 5                      | 2.753M   |
+| ifce.arms                          | 54                     | 1.124M   |
+| ifce.arms.0.mlp.0                  | 20                     | 0.885M   |
+| ifce.arms.0.mlp.0.weight           | (2, 9)                 |          |
+| ifce.arms.0.mlp.0.bias             | (2,)                   |          |
+| ifce.arms.1.mlp.0                  | 18                     | 0.197M   |
+| ifce.arms.1.mlp.0.weight           | (2, 8)                 |          |
+| ifce.arms.1.mlp.0.bias             | (2,)                   |          |
+| ifce.arms.2.mlp.0                  | 16                     | 43.008K  |
+| ifce.arms.2.mlp.0.weight           | (2, 7)                 |          |
+| ifce.arms.2.mlp.0.bias             | (2,)                   |          |
+
+----------------------------------
+Total MAC / decoded pixel: 890.9
+----------------------------------
+motion
+
+CoolChicEncoder(
+  (latent_grids): ParameterList(
+      (0): Parameter containing: [torch.float32 of size 1x1x96x128]
+      (1): Parameter containing: [torch.float32 of size 1x1x48x64]
+      (2): Parameter containing: [torch.float32 of size 1x1x24x32]
+      (3): Parameter containing: [torch.float32 of size 1x1x12x16]
+      (4): Parameter containing: [torch.float32 of size 1x1x6x8]
+  )
+  (arm): Arm(
+    (mlp): Sequential(
+      (0): ArmLinear()
+      (1): ReLU()
+      (2): ArmLinear()
+      (3): ReLU()
+      (4): ArmLinear()
+    )
+    (stabiliser_branch): ArmLinear()
+  )
+  (synthesis): Synthesis(
+    (output_transform): SynthesisConv2d()
+    (stabiliser_branch): SynthesisConv2d()
+    (main_branch): Sequential(
+      (0): SynthesisConv2d()
+      (1): ReLU()
+      (2): SynthesisConv2d()
+      (3): Identity()
+    )
+  )
+  (upsampling): Upsampling(
+    (conv_transpose2ds): ModuleList(
+      (0-5): 6 x ParametrizedUpsamplingSeparableSymmetricConvTranspose2d(
+        (parametrizations): ModuleDict(
+          (weight): ParametrizationList(
+            (0): _Parameterization_Symmetric_1d()
+          )
+        )
+      )
+    )
+    (conv2ds): ModuleList(
+      (0-5): 6 x ParametrizedUpsamplingSeparableSymmetricConv2d(
+        (parametrizations): ModuleDict(
+          (weight): ParametrizationList(
+            (0): _Parameterization_Symmetric_1d()
+          )
+        )
+      )
+    )
+  )
+  (ifce): Ifce(
+    (arms): ModuleList(
+      (0): Arm(
+        (mlp): Sequential(
+          (0): ArmLinear()
+        )
+      )
+    )
+  )
+)
+
+| module                             | #parameters or shape   | #flops   |
+|:-----------------------------------|:-----------------------|:---------|
+| model                              | 16.766K                | 5.279M   |
+| latent_grids                       | 16.368K                |          |
+| latent_grids.0                     | (1, 1, 96, 128)        |          |
+| latent_grids.1                     | (1, 1, 48, 64)         |          |
+| latent_grids.2                     | (1, 1, 24, 32)         |          |
+| latent_grids.3                     | (1, 1, 12, 16)         |          |
+| latent_grids.4                     | (1, 1, 6, 8)           |          |
+| arm                                | 0.18K                  | 2.619M   |
+| arm.mlp                            | 0.162K                 | 2.357M   |
+| arm.mlp.0                          | 72                     | 1.048M   |
+| arm.mlp.2                          | 72                     | 1.048M   |
+| arm.mlp.4                          | 18                     | 0.262M   |
+| arm.stabiliser_branch              | 18                     | 0.262M   |
+| arm.stabiliser_branch.weight       | (2, 8)                 |          |
+| arm.stabiliser_branch.bias         | (2,)                   |          |
+| synthesis                          | 0.148K                 | 1.548M   |
+| synthesis.output_transform         | 6                      | 49.152K  |
+| synthesis.output_transform.weight  | (2, 2, 1, 1)           |          |
+| synthesis.output_transform.bias    | (2,)                   |          |
+| synthesis.stabiliser_branch        | 12                     | 0.123M   |
+| synthesis.stabiliser_branch.weight | (2, 5, 1, 1)           |          |
+| synthesis.stabiliser_branch.bias   | (2,)                   |          |
+| synthesis.main_branch              | 0.13K                  | 1.376M   |
+| synthesis.main_branch.0            | 96                     | 0.983M   |
+| synthesis.main_branch.2            | 34                     | 0.393M   |
+| upsampling                         | 60                     | 0.658M   |
+| upsampling.conv_transpose2ds       | 30                     | 0.43M    |
+| upsampling.conv_transpose2ds.0     | 5                      | 2.56K    |
+| upsampling.conv_transpose2ds.1     | 5                      | 14.848K  |
+| upsampling.conv_transpose2ds.2     | 5                      | 72.192K  |
+| upsampling.conv_transpose2ds.3     | 5                      | 0.34M    |
+| upsampling.conv_transpose2ds.4     | 5                      |          |
+| upsampling.conv_transpose2ds.5     | 5                      |          |
+| upsampling.conv2ds                 | 30                     | 0.228M   |
+| upsampling.conv2ds.0               | 5                      | 2.688K   |
+| upsampling.conv2ds.1               | 5                      | 10.752K  |
+| upsampling.conv2ds.2               | 5                      | 43.008K  |
+| upsampling.conv2ds.3               | 5                      | 0.172M   |
+| upsampling.conv2ds.4               | 5                      |          |
+| upsampling.conv2ds.5               | 5                      |          |
+| ifce.arms.0.mlp.0                  | 10                     | 24.576K  |
+| ifce.arms.0.mlp.0.weight           | (2, 4)                 |          |
+| ifce.arms.0.mlp.0.bias             | (2,)                   |          |
+
+----------------------------------
+Total MAC / decoded pixel: 26.8
+----------------------------------

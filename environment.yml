@@ -1,0 +1,43 @@
+# Conda environment for the comma video compression challenge.
+# Versions pinned to the repo's uv.lock where available.
+#
+#   conda env create -f environment.yml
+#   conda activate comma-compress
+#
+# Notes:
+# - torch/torchvision from PyPI ship with CUDA on Linux, so the same env
+#   serves both CPU evaluation (the leaderboard axis) and GPU training.
+# - `unzip` is required by evaluate.sh; ffmpeg is used by baselines and
+#   download_and_remux.sh.
+# - DALI (GPU-only dataloader, nvdec ground-truth decode) is optional and
+#   NOT the leaderboard axis; uncomment the last two lines if you want
+#   `--device cuda` evaluation.
+name: comma-compress
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - unzip
+  - ffmpeg
+  - git
+  - git-lfs
+  - pip:
+      - torch==2.9.0
+      - torchvision==0.24.0
+      - numpy==2.3.4
+      - einops==0.8.1
+      - timm==1.0.22
+      - safetensors==0.6.2
+      - segmentation-models-pytorch==0.5.0
+      - av==17.0.0
+      - tqdm==4.67.1
+      - pillow==12.0.0
+      - brotli==1.2.0
+      - constriction>=0.4,<0.5
+      - pyppmd
+      - requests
+      - charset-normalizer
+      # optional, GPU evaluation only:
+      # - --extra-index-url https://pypi.nvidia.com
+      # - nvidia-dali-cuda120
