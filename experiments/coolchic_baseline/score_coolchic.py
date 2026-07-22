@@ -56,23 +56,36 @@ def yuv_planes_to_rgb(y: np.ndarray, u: np.ndarray, v: np.ndarray) -> torch.Tens
     return torch.stack([r, g, b], dim=-1).round().to(torch.uint8)
 
 
-def read_recon_yuv(path: Path, n_frames: int):
-    """Yield uint8 HWC RGB tensors (cropped to camera size) from the padded
-    raw yuv420p reconstruction."""
-    frame_bytes = PAD_W * PAD_H * 3 // 2
+def read_recon_yuv(path: Path, n_frames: int, rw: int, rh: int):
+    """Yield uint8 HWC RGB tensors at camera size from a raw yuv420p recon.
+
+    Full-res recon (1168x880): convert then crop the padding off.
+    Eval-res recon (512x384): convert then bicubic-upsample to camera size,
+    mirroring the intended inflate chain of a 384x512-coded submission.
+    """
+    frame_bytes = rw * rh * 3 // 2
     data = np.memmap(path, dtype=np.uint8, mode="r")
     n_avail = data.size // frame_bytes
     if n_avail < n_frames:
         raise SystemExit(f"recon has {n_avail} frames, expected {n_frames}")
     for i in range(n_frames):
         off = i * frame_bytes
-        y = np.array(data[off : off + PAD_W * PAD_H]).reshape(PAD_H, PAD_W)
-        off += PAD_W * PAD_H
-        u = np.array(data[off : off + PAD_W * PAD_H // 4]).reshape(PAD_H // 2, PAD_W // 2)
-        off += PAD_W * PAD_H // 4
-        v = np.array(data[off : off + PAD_W * PAD_H // 4]).reshape(PAD_H // 2, PAD_W // 2)
-        rgb = yuv_planes_to_rgb(y, u, v)  # (PAD_H, PAD_W, 3)
-        yield rgb[:H, :W, :].contiguous()
+        y = np.array(data[off : off + rw * rh]).reshape(rh, rw)
+        off += rw * rh
+        u = np.array(data[off : off + rw * rh // 4]).reshape(rh // 2, rw // 2)
+        off += rw * rh // 4
+        v = np.array(data[off : off + rw * rh // 4]).reshape(rh // 2, rw // 2)
+        rgb = yuv_planes_to_rgb(y, u, v)  # (rh, rw, 3) uint8
+        if (rh, rw) == (PAD_H, PAD_W):
+            yield rgb[:H, :W, :].contiguous()
+        elif (rh, rw) == (H, W):
+            yield rgb
+        else:
+            up = F.interpolate(
+                rgb.float().permute(2, 0, 1).unsqueeze(0),
+                size=(H, W), mode="bicubic", align_corners=False,
+            ).clamp(0, 255).round().to(torch.uint8)
+            yield up.squeeze(0).permute(1, 2, 0).contiguous()
 
 
 def read_gt_frames(n_frames: int):
@@ -94,14 +107,23 @@ def main():
     ap.add_argument("--run", type=Path, required=True, help="run dir from run_one.sh")
     ap.add_argument("--device", type=str, default=None)
     ap.add_argument("--batch-pairs", type=int, default=8)
+    ap.add_argument("--diagnose", action="store_true",
+                    help="pose root-cause probes (reuses recon, no retrain)")
     args = ap.parse_args()
 
     device = torch.device(args.device) if args.device else (
         torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"))
 
-    recon_path = args.run / "recon_1168x880_20p_yuv420_8b.yuv"
+    recon_path = None
+    for geom in ((PAD_W, PAD_H), (512, 384)):
+        cand = args.run / f"recon_{geom[0]}x{geom[1]}_20p_yuv420_8b.yuv"
+        if cand.exists():
+            recon_path, (rw, rh) = cand, geom
+            break
+    if recon_path is None:
+        raise SystemExit(f"no recon_*.yuv found in {args.run}")
     bitstream_path = args.run / "bitstream.cool"
-    n_frames = int(np.memmap(recon_path, dtype=np.uint8, mode="r").size // (PAD_W * PAD_H * 3 // 2))
+    n_frames = int(np.memmap(recon_path, dtype=np.uint8, mode="r").size // (rw * rh * 3 // 2))
     n_pairs = n_frames // 2
     print(f"run: {args.run}  ({n_frames} frames = {n_pairs} pairs, device {device})")
 
@@ -109,7 +131,7 @@ def main():
     net.load_state_dicts(posenet_sd_path, segnet_sd_path, device)
 
     gt = read_gt_frames(n_frames)
-    recon = list(read_recon_yuv(recon_path, n_frames))
+    recon = list(read_recon_yuv(recon_path, n_frames, rw, rh))
 
     seg_sum, pose_sum = 0.0, 0.0
     with torch.inference_mode():
@@ -143,6 +165,68 @@ def main():
         f.write(f"{args.run.name},{n_frames},{bytes_actual},{seg:.8f},{pose:.8f},"
                 f"{rate_extrap:.8f},{score_extrap:.6f}\n")
     print(f"appended to {HERE / 'results.csv'}")
+
+    if args.diagnose:
+        run_diagnostics(net, gt, recon, n_pairs, device)
+
+
+def _pose_pairs(net, frame0_list, frame1_list, idxs, device):
+    """Per-pair PoseNet distortion for the given (frame0, frame1) lists."""
+    out = []
+    with torch.inference_mode():
+        for p in idxs:
+            gt0, gt1 = frame0_list[p]
+            rc0, rc1 = frame1_list[p]
+            gt_b = torch.stack([torch.stack([gt0, gt1])]).to(device)
+            rc_b = torch.stack([torch.stack([rc0, rc1])]).to(device)
+            pose_d, _ = net.compute_distortion(gt_b, rc_b)
+            out.append(pose_d.item())
+    return out
+
+
+def run_diagnostics(net, gt, recon, n_pairs, device):
+    print("\n=== POSE DIAGNOSTICS ===")
+    idxs = list(range(n_pairs))
+
+    # (A) Per-pair pose: uniform (systematic) vs spiky (a few bad pairs)?
+    gt_pairs = [(gt[2 * p], gt[2 * p + 1]) for p in idxs]
+    rc_pairs = [(recon[2 * p], recon[2 * p + 1]) for p in idxs]
+    per = _pose_pairs(net, gt_pairs, rc_pairs, idxs, device)
+    arr = np.array(per)
+    print(f"(A) per-pair pose: min {arr.min():.3f}  med {np.median(arr):.3f}  "
+          f"max {arr.max():.3f}  mean {arr.mean():.3f}")
+    worst = arr.argsort()[::-1][:5]
+    print(f"    worst pairs: {[(int(i), round(float(arr[i]), 2)) for i in worst]}")
+
+    # (B) Alignment: recompute pose with recon shifted by +/-1 frame. If a
+    #     shift collapses pose, our pairing/frame order is off by one.
+    def shifted(shift):
+        rp = []
+        for p in idxs:
+            a, b = 2 * p + shift, 2 * p + 1 + shift
+            if 0 <= a < 2 * n_pairs and 0 <= b < 2 * n_pairs:
+                rp.append((recon[a], recon[b]))
+            else:
+                rp.append((recon[2 * p], recon[2 * p + 1]))
+        return rp
+    for s in (-1, 1):
+        ps = _pose_pairs(net, gt_pairs, shifted(s), idxs, device)
+        print(f"(B) recon shifted {s:+d}: mean pose {np.mean(ps):.3f} "
+              f"(vs aligned {arr.mean():.3f})")
+
+    # (C) Scale reference: pose of degenerate recons vs GT, to know what
+    #     "large" means for this metric on this clip.
+    #   c1: recon = GT (should be ~0; nonzero = numeric floor)
+    id_pose = _pose_pairs(net, gt_pairs, gt_pairs, idxs, device)
+    #   c2: recon = GT frame0 duplicated (kills all motion) -> pose of "no motion"
+    dup_pairs = [(gt[2 * p], gt[2 * p]) for p in idxs]
+    dup_pose = _pose_pairs(net, gt_pairs, dup_pairs, idxs, device)
+    print(f"(C) pose[recon=GT] mean {np.mean(id_pose):.4f} (numeric floor)")
+    print(f"    pose[recon=GT frame0 duplicated] mean {np.mean(dup_pose):.3f} "
+          f"(what 'zero motion' costs)")
+    print(f"    -> our pose {arr.mean():.3f} vs no-motion {np.mean(dup_pose):.3f}: "
+          f"{'WORSE than no-motion (recon injects false motion)' if arr.mean() > np.mean(dup_pose) else 'better than no-motion'}")
+    print("=== END DIAGNOSTICS ===")
 
 
 if __name__ == "__main__":

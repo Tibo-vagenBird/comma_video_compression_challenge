@@ -1,0 +1,2 @@
+loss        psnr_db      rate_bpp    lmbda   seq_name                        n_pixels   display_order   coding_order   
+0.3057196   38.8666923   0.0087951   0.02    video0_1168x880_20p_yuv420_8b   1027840    31              2              

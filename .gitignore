@@ -235,3 +235,6 @@ archive.zip
 archive/
 inflated/
 report.txt
+
+# Large raw YUV inputs (regenerable via prep_yuv.sh; exceed GitHub's 100MB file limit)
+experiments/coolchic_baseline/data/*.yuv

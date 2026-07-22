@@ -99,8 +99,24 @@ def main():
     print(f"coding structure: "
           + " ".join(f"{f['type']}{f['display']}" for f in frames), flush=True)
 
+    # Resume support. A frame is complete iff BOTH exist in the workdir:
+    #   XXXX-decoded-<seq>.yuv     (reference for later frames; saved first)
+    #   XXXX-results_decoder.tsv   (written AFTER the bitstream append, so its
+    #                               presence proves the frame's chunk landed)
+    seq_name = Path(args.input).name.rsplit(".", 1)[0]
+    w_str, h_str = seq_name.split("_")[1].split("x")
+    frame_yuv_bytes = int(w_str) * int(h_str) * 3 // 2
+    workdir = Path(args.workdir)
+
     for coding_idx, fr in enumerate(frames):
         ftype, depth = fr["type"], int(fr["depth"])
+        prefix = f"{int(fr['display']):04d}-"
+        dec = workdir / f"{prefix}decoded-{seq_name}.yuv"
+        tsv = workdir / f"{prefix}results_decoder.tsv"
+        if dec.exists() and dec.stat().st_size == frame_yuv_bytes and tsv.exists():
+            print(f"[frame {coding_idx + 1}/{len(frames)}] already encoded "
+                  f"(found {tsv.name}), skipping", flush=True)
+            continue
         cmd = [
             py, str(cc / "cc_encode.py"),
             f"--input={args.input}",
