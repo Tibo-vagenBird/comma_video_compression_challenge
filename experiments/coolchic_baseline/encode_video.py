@@ -16,7 +16,8 @@ import sys
 from pathlib import Path
 
 
-def frame_config(cfg: Path, ftype: str, depth: int, lmbda: float) -> list[str]:
+def frame_config(cfg: Path, ftype: str, depth: int, lmbda: float,
+                 starved: bool = False) -> list[str]:
     if ftype == "I":
         return [
             f"--dec_cfg_residue={cfg}/dec/intra/hop.cfg",
@@ -25,6 +26,20 @@ def frame_config(cfg: Path, ftype: str, depth: int, lmbda: float) -> list[str]:
             f"--lmbda={lmbda}",
         ]
     if ftype == "P":
+        if starved:
+            # Pose-carrier frame (even display index under --tune=comma):
+            # judged only by PoseNet, which reads ego-motion — so keep a good
+            # motion model but starve the residual (lightest residual config +
+            # high rate pressure). The warp of the previous frame carries the
+            # motion signal almost for free.
+            return [
+                f"--dec_cfg_residue={cfg}/dec/residue/lop.cfg",
+                f"--dec_cfg_motion={cfg}/dec/motion/mop.cfg",
+                "--start_lr=5e-3",
+                "--n_itr_pretrain_motion=3000",
+                "--n_itr=10000",
+                f"--lmbda={lmbda}",
+            ]
         return [
             f"--dec_cfg_residue={cfg}/dec/residue/mop.cfg",
             f"--dec_cfg_motion={cfg}/dec/motion/mop.cfg",
@@ -59,6 +74,9 @@ def main():
                          "(Cool-Chic requires the last frame to be I or P)")
     ap.add_argument("--gop", type=int, default=16)
     ap.add_argument("--lmbda", type=float, required=True)
+    ap.add_argument("--even_lmbda_mult", type=float, default=8.0,
+                    help="rate-pressure multiplier for even (PoseNet-only) "
+                         "P-frames under --tune=comma; 1.0 disables starvation")
     ap.add_argument("--extra_args", default="")
     args = ap.parse_args()
 
@@ -108,15 +126,23 @@ def main():
     frame_yuv_bytes = int(w_str) * int(h_str) * 3 // 2
     workdir = Path(args.workdir)
 
+    comma_mode = "comma" in args.extra_args
+
     for coding_idx, fr in enumerate(frames):
         ftype, depth = fr["type"], int(fr["depth"])
-        prefix = f"{int(fr['display']):04d}-"
+        display = int(fr["display"])
+        prefix = f"{display:04d}-"
         dec = workdir / f"{prefix}decoded-{seq_name}.yuv"
         tsv = workdir / f"{prefix}results_decoder.tsv"
         if dec.exists() and dec.stat().st_size == frame_yuv_bytes and tsv.exists():
             print(f"[frame {coding_idx + 1}/{len(frames)}] already encoded "
                   f"(found {tsv.name}), skipping", flush=True)
             continue
+        # Idea 1: even display index (PoseNet-only) P-frames become starved
+        # pose carriers — lightest residual + even_lmbda_mult x rate pressure.
+        starved = (comma_mode and ftype == "P" and display % 2 == 0
+                   and args.even_lmbda_mult != 1.0)
+        frame_lmbda = args.lmbda * (args.even_lmbda_mult if starved else 1.0)
         cmd = [
             py, str(cc / "cc_encode.py"),
             f"--input={args.input}",
@@ -124,12 +150,15 @@ def main():
             f"--workdir={args.workdir}",
             *struct_args,
             f"--coding_idx={coding_idx}",
-            *frame_config(cfg, ftype, depth, args.lmbda),
+            *frame_config(cfg, ftype, depth, frame_lmbda, starved=starved),
         ]
         if args.extra_args:
             cmd += args.extra_args.split()
+        role = "pose-carrier(starved)" if starved else (
+            "judged(odd)" if comma_mode and display % 2 == 1 else "std")
         print(f"\n[frame {coding_idx + 1}/{len(frames)}] coding_idx={coding_idx} "
-              f"type={ftype} depth={depth} display={fr['display']}", flush=True)
+              f"type={ftype} depth={depth} display={display} role={role} "
+              f"lmbda={frame_lmbda:g}", flush=True)
         subprocess.run(cmd, cwd=str(cc), check=True)
 
     print("\nencode complete:", args.output, flush=True)

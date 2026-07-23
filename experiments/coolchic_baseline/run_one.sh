@@ -110,7 +110,11 @@ echo "run dir: $RUN"
 # ---------------------------------------------------------------------------
 # Encode
 # ---------------------------------------------------------------------------
-echo "=== encode: lambda=$LMBDA n_frames=$N_FRAMES gpu=$GPU struct=$STRUCT res=$RES tune=$TUNE ==="
+# Tunables forwarded from the environment (defaults match comma.py /
+# encode_video.py): COMMA_POSE_W, COMMA_L7_MULT, EVEN_LMBDA_MULT, ...
+EVEN_LMBDA_MULT="${EVEN_LMBDA_MULT:-8.0}"
+echo "=== encode: lambda=$LMBDA n_frames=$N_FRAMES gpu=$GPU struct=$STRUCT res=$RES tune=$TUNE even_mult=$EVEN_LMBDA_MULT pose_w=${COMMA_POSE_W:-default} ==="
+{ echo "config: lambda=$LMBDA even_lmbda_mult=$EVEN_LMBDA_MULT COMMA_POSE_W=${COMMA_POSE_W:-}"; env | grep '^COMMA_' || true; } > "$RUN/config.txt"
 CUDA_VISIBLE_DEVICES="$GPU" python "$HERE/encode_video.py" \
   --coolchic "$CCREPO" \
   -i "$YUV" \
@@ -119,6 +123,7 @@ CUDA_VISIBLE_DEVICES="$GPU" python "$HERE/encode_video.py" \
   --intra_pos 0 \
   --n_frames "$N_FRAMES" \
   $P_POS_ARG \
+  --even_lmbda_mult "$EVEN_LMBDA_MULT" \
   --extra_args="$EXTRA_ARGS" \
   --lmbda "$LMBDA" 2>&1 | tee "$RUN/encode.log"
 
