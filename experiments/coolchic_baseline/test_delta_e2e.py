@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""End-to-end byte-exact gate for Phase 1 weight delta-coding (run on the cloud).
+"""End-to-end byte-exact gate for delta coding and incremental reconstruction.
 
 Deterministic: it does NOT train. It takes a FINISHED run's workdir (the
 NNNN-frame_encoder.pt files) and, from the SAME weights, encodes the bitstream
@@ -8,9 +8,9 @@ twice --
     * delta OFF  -> every module coded full   (baseline format)
     * delta ON   -> same-role predecessor delta where cheaper
 
--- then decodes both and asserts the two reconstructions are byte-identical
-(delta is a lossless re-coding of the same weights) while the delta bitstream is
-no larger. If the decodes differ, delta-coding is corrupting weights -> FAIL.
+-- then decodes both and asserts that full, delta, and their encoder-side
+incremental reconstructions are byte-identical while the delta bitstream is no
+larger. Any difference means the fast reference path or delta coding is invalid.
 
 Run in the coolchic env:
   python experiments/coolchic_baseline/test_delta_e2e.py \
@@ -41,7 +41,7 @@ def main():
     sys.path.insert(0, os.path.abspath(os.path.expanduser(args.coolchic)))
     import torch  # noqa: F401
     from coolchic.bitstream.decode import decode_video
-    from coolchic.bitstream.encode import encode_frame
+    from coolchic.bitstream.encode import encode_frame_with_reconstruction
     from coolchic.bitstream.neuralnet.delta import find_same_role_reference
     from coolchic.component.frame import load_frame_encoder
     from coolchic.component.video import _get_frame_path_prefix
@@ -62,22 +62,35 @@ def main():
         return load_frame_encoder(f"{_get_frame_path_prefix(display)}frame_encoder.pt")
 
     def encode_all(out_path, delta):
+        incremental_recon = {}
         for coding_idx in range(args.n_frames):
             frame = coding_structure.get_frame_from_coding_order(coding_idx)
             fe = load_fe(frame.display_order)
+            refs_data = [
+                incremental_recon[idx_ref]
+                for idx_ref in frame.index_references
+            ]
             ref_fe = None
             if delta:
                 ref = find_same_role_reference(coding_structure, frame)
                 if ref is not None:
                     ref_fe = load_fe(ref.display_order)
-            encode_frame(fe, out_path, coding_structure, ref_frame_encoder=ref_fe)
+            _, reconstructed = encode_frame_with_reconstruction(
+                fe,
+                out_path,
+                coding_structure,
+                reference_frames=refs_data,
+                ref_frame_encoder=ref_fe,
+            )
+            incremental_recon[frame.display_order] = reconstructed
+        return incremental_recon
 
     full_bs = os.path.abspath("_delta_e2e_full.cool")
     delta_bs = os.path.abspath("_delta_e2e_delta.cool")
     print("encoding delta OFF (full) ...", flush=True)
-    encode_all(full_bs, delta=False)
+    incremental_full = encode_all(full_bs, delta=False)
     print("encoding delta ON  ...", flush=True)
-    encode_all(delta_bs, delta=True)
+    incremental_delta = encode_all(delta_bs, delta=True)
 
     n_full = os.path.getsize(full_bs)
     n_delta = os.path.getsize(delta_bs)
@@ -97,18 +110,35 @@ def main():
     dec_full = decode_video(full_bs, decoded_path=None, max_decoding_order=args.n_frames - 1)
     dec_delta = decode_video(delta_bs, decoded_path=None, max_decoding_order=args.n_frames - 1)
 
-    # ---- byte-exact comparison of every decoded frame ----
+    # ---- byte-exact comparison of every decoded and incremental frame ----
     ok = True
     for k in dec_full:
-        a, b = dec_full[k].data, dec_delta[k].data
-        if isinstance(a, dict):  # yuv420
-            md = max((a[c] - b[c]).abs().max().item() for c in a)
-        else:
-            md = (a - b).abs().max().item()
-        flag = "OK " if md == 0 else "DIFF"
-        if md != 0:
+        display_idx = int(k)
+        comparisons = {
+            "full-delta": (dec_full[k].data, dec_delta[k].data),
+            "incremental-full": (
+                incremental_full[display_idx].data,
+                dec_full[k].data,
+            ),
+            "incremental-delta": (
+                incremental_delta[display_idx].data,
+                dec_delta[k].data,
+            ),
+        }
+        max_diffs = {}
+        for name, (a, b) in comparisons.items():
+            if isinstance(a, dict):  # yuv420
+                md = max((a[c] - b[c]).abs().max().item() for c in a)
+            else:
+                md = (a - b).abs().max().item()
+            max_diffs[name] = md
+        if any(md != 0 for md in max_diffs.values()):
             ok = False
-        print(f"  frame {k:>3}: max|full-delta| = {md}   {flag}")
+        print(
+            f"  frame {k:>3}: "
+            + "  ".join(f"{name}={md}" for name, md in max_diffs.items())
+            + ("   OK" if all(md == 0 for md in max_diffs.values()) else "   DIFF")
+        )
 
     for p in (full_bs, delta_bs):
         try:
@@ -118,11 +148,14 @@ def main():
 
     print()
     if ok and n_delta <= n_full:
-        print(f"PASS: delta is byte-exact lossless and saved {n_full - n_delta:,} bytes "
-              f"({100 * (1 - n_delta / n_full):.1f}%).")
+        print(
+            "PASS: incremental reconstruction is byte-exact, delta is lossless, "
+            f"and delta saved {n_full - n_delta:,} bytes "
+            f"({100 * (1 - n_delta / n_full):.1f}%)."
+        )
         sys.exit(0)
     if not ok:
-        print("FAIL: delta decode differs from full decode -> weight corruption.")
+        print("FAIL: incremental, full, or delta reconstructions differ.")
     else:
         print("FAIL: delta bitstream is LARGER than full (never-worse violated).")
     sys.exit(1)

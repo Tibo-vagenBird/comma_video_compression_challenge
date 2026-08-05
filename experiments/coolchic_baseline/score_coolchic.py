@@ -9,8 +9,9 @@ Run in the *comma-compress* env (needs torch, av, timm, smp...), from anywhere:
 Reads <run>/recon_1164x874_20p_yuv420_8b.yuv and <run>/bitstream.cool,
 compares the first N reconstructed frames against the ground-truth decode of
 videos/0.mkv (the exact harness path: PyAV + frame_utils.yuv420_to_rgb), and
-prints seg/pose/rate/score. Rate is reported two ways: raw bitstream bytes
-over the full 37,545,489-byte denominator, and extrapolated to 1200 frames.
+prints seg/pose/rate/score. The score uses a temporary Deflate-9 ZIP containing
+the bitstream, matching the challenge's outer-archive rate accounting. Raw
+bitstream bytes remain visible as a diagnostic.
 """
 import argparse
 import math
@@ -28,6 +29,10 @@ sys.path.insert(0, str(ROOT))
 import av  # noqa: E402
 from frame_utils import yuv420_to_rgb, camera_size  # noqa: E402
 from modules import DistortionNet, segnet_sd_path, posenet_sd_path  # noqa: E402
+from experiments.coolchic_baseline.archive_rate import (  # noqa: E402
+    append_results,
+    calculate_archive_score,
+)
 
 W, H = camera_size  # (1164, 874)
 PAD_W, PAD_H = 1168, 880  # encode-side padding for RAFT (needs /8); cropped here
@@ -146,25 +151,38 @@ def main():
     seg = seg_sum / n_pairs
     pose = pose_sum / n_pairs
 
-    bytes_actual = bitstream_path.stat().st_size
-    bytes_extrap = bytes_actual * TOTAL_FRAMES / n_frames
-    rate_actual = bytes_actual / UNCOMPRESSED_BYTES
-    rate_extrap = bytes_extrap / UNCOMPRESSED_BYTES
-
-    score_extrap = 100 * seg + math.sqrt(10 * pose) + 25 * rate_extrap
+    result = calculate_archive_score(
+        bitstream_path=bitstream_path,
+        n_frames=n_frames,
+        total_frames=TOTAL_FRAMES,
+        uncompressed_bytes=UNCOMPRESSED_BYTES,
+        seg=seg,
+        pose=pose,
+    )
     print(f"  seg  = {seg:.8f}   (100*seg = {100*seg:.4f})")
     print(f"  pose = {pose:.8f}   (sqrt(10*pose) = {math.sqrt(10*pose):.4f})")
-    print(f"  bitstream = {bytes_actual:,} B for {n_frames} frames "
-          f"-> {bytes_extrap:,.0f} B extrapolated to {TOTAL_FRAMES}")
-    print(f"  rate = {rate_actual:.6f} raw, {rate_extrap:.6f} extrapolated "
-          f"(25*rate_extrap = {25*rate_extrap:.4f})")
-    print(f"  SCORE (extrapolated rate) = {score_extrap:.4f}")
+    print(f"  bitstream = {result.raw_bytes:,} B raw")
+    print(f"  temporary ZIP = {result.archive_bytes:,} B for {n_frames} frames "
+          f"-> {result.archive_bytes_extrap:,.0f} B extrapolated to {TOTAL_FRAMES}")
+    print(f"  ZIP rate = {result.rate_actual:.6f} partial, "
+          f"{result.rate_extrap:.6f} extrapolated "
+          f"(25*rate_extrap = {25*result.rate_extrap:.4f})")
+    print(f"  SCORE (extrapolated rate) = {result.score:.4f}")
     print(f"  [refs: ffmpeg baseline 4.39 | hnerv_muon ~0.20 | SOTA 0.1885]")
 
-    with open(HERE / "results.csv", "a") as f:
-        f.write(f"{args.run.name},{n_frames},{bytes_actual},{seg:.8f},{pose:.8f},"
-                f"{rate_extrap:.8f},{score_extrap:.6f}\n")
-    print(f"appended to {HERE / 'results.csv'}")
+    results_path = HERE / "results_v2.csv"
+    append_results(
+        results_path,
+        args.run.name,
+        n_frames,
+        result.raw_bytes,
+        result.archive_bytes,
+        seg,
+        pose,
+        result.rate_extrap,
+        result.score,
+    )
+    print(f"appended to {results_path}")
 
     if args.diagnose:
         run_diagnostics(net, gt, recon, n_pairs, device)
