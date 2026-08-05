@@ -110,19 +110,7 @@ echo "run dir: $RUN"
 # ---------------------------------------------------------------------------
 # Encode
 # ---------------------------------------------------------------------------
-# Tunables forwarded from the environment (defaults match comma.py /
-# encode_video.py): COMMA_POSE_W, COMMA_L7_MULT, EVEN_LMBDA_MULT, ...
-EVEN_LMBDA_MULT="${EVEN_LMBDA_MULT:-4.0}"
-# Encode-speed levers (env-controlled):
-#   WARMSTART=1               enable temporal warm-start (lever 2)
-#   WARMSTART_N_ITR=3000      main iters for warm-started frames
-#   COMMA_WARMUP_MSE_ITERS=N  MSE-warmup: MSE for first N iters/frame (lever 3)
-WARMSTART_ARGS=""
-if [ "${WARMSTART:-1}" = "1" ]; then
-  WARMSTART_ARGS="--warmstart --warmstart_n_itr ${WARMSTART_N_ITR:-3000}"
-fi
-echo "=== encode: lambda=$LMBDA n_frames=$N_FRAMES gpu=$GPU struct=$STRUCT res=$RES tune=$TUNE even_mult=$EVEN_LMBDA_MULT pose_w=${COMMA_POSE_W:-default} warmstart=${WARMSTART:-1} warmup_mse=${COMMA_WARMUP_MSE_ITERS:-0} ==="
-{ echo "config: lambda=$LMBDA even_lmbda_mult=$EVEN_LMBDA_MULT WARMSTART=${WARMSTART:-1} WARMSTART_N_ITR=${WARMSTART_N_ITR:-3000}"; env | grep '^COMMA_' || true; } > "$RUN/config.txt"
+echo "=== encode: lambda=$LMBDA n_frames=$N_FRAMES gpu=$GPU struct=$STRUCT res=$RES tune=$TUNE ==="
 CUDA_VISIBLE_DEVICES="$GPU" python "$HERE/encode_video.py" \
   --coolchic "$CCREPO" \
   -i "$YUV" \
@@ -131,8 +119,6 @@ CUDA_VISIBLE_DEVICES="$GPU" python "$HERE/encode_video.py" \
   --intra_pos 0 \
   --n_frames "$N_FRAMES" \
   $P_POS_ARG \
-  --even_lmbda_mult "$EVEN_LMBDA_MULT" \
-  $WARMSTART_ARGS \
   --extra_args="$EXTRA_ARGS" \
   --lmbda "$LMBDA" 2>&1 | tee "$RUN/encode.log"
 

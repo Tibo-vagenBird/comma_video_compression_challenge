@@ -1,0 +1,73 @@
+diff --git a/coolchic/component/video.py b/coolchic/component/video.py
+index cd799cc..f5b2d61 100644
+--- a/coolchic/component/video.py
++++ b/coolchic/component/video.py
+@@ -73,6 +73,12 @@ def encode_one_frame(
+     frame.set_refs_data(get_ref_data(frame, coding_structure))
+     prefix_save = f"{_get_frame_path_prefix(frame.display_order)}"
+ 
++    # comma challenge metric: give the loss access to the frame identity and
++    # the decoded even pair-partner (needed for the PoseNet pair loss).
++    if "comma" in getattr(training_preset, "dist_weight", {}):
++        from coolchic.training.metrics.comma import set_frame_context
++        set_frame_context(frame, device)
++
+     if frame.frame_type == "I" and "motion" in coolchic_enc_param:
+         coolchic_enc_param.pop("motion")
+ 
+diff --git a/coolchic/training/loss.py b/coolchic/training/loss.py
+index 070c3ca..e5391f5 100644
+--- a/coolchic/training/loss.py
++++ b/coolchic/training/loss.py
+@@ -18,7 +18,7 @@ from coolchic.io.format.yuv import DictTensorYUV
+ from coolchic.training.metrics.mse import dist_to_db, mse_fn
+ from coolchic.training.metrics.wasserstein import wasserstein_fn
+ 
+-DISTORTION_METRIC = Literal["mse", "wasserstein"]
++DISTORTION_METRIC = Literal["mse", "wasserstein", "comma"]
+ 
+ 
+ @dataclass(kw_only=True)
+@@ -226,6 +226,9 @@ def loss_function(
+             cur_dist = _compute_mse(decoded_image, target_image)
+         elif dist_name == "wasserstein":
+             cur_dist = _compute_wasserstein(decoded_image, target_image)
++        elif dist_name == "comma":
++            from coolchic.training.metrics.comma import compute_comma_distortion
++            cur_dist = compute_comma_distortion(decoded_image, target_image)
+         else:
+             raise ValueError(
+                 f"Unsupported distortion metrics. Found {dist_name}, available "
+@@ -261,6 +264,11 @@ def loss_function(
+         }
+         total_rate_nn_bpp = total_rate_nn_bit / n_pixels
+ 
++        # PSNR logging always reads detailed_dist["mse"]; the comma metric
++        # replaces mse in dist_weight, so backfill it for the logs.
++        if "mse" not in all_dists:
++            all_dists["mse"] = _compute_mse(decoded_image, target_image).detach()
++
+         # Detach all distortions only when computing logs
+         for k, v in all_dists.items():
+             all_dists[k] = v.detach().item()
+diff --git a/coolchic/utils/parsecli.py b/coolchic/utils/parsecli.py
+index f72ac92..5a5304f 100644
+--- a/coolchic/utils/parsecli.py
++++ b/coolchic/utils/parsecli.py
+@@ -348,6 +348,16 @@ def get_preset_from_args(args: argparse.Namespace) -> Dict[str, Any]:
+         # "Perceptually optimised Cool-chic for CLIC 2025", Philippe et al.
+         dist_weight = {"mse": 0.2, "wasserstein": 0.8 / 200}
+ 
++    elif args.tune == "comma":
++        if not args.input.endswith(".yuv"):
++            raise argparse.ArgumentTypeError(
++                "--tune=comma expects a YUV420 input video"
++            )
++        # comma.ai challenge judge losses (SegNet/PoseNet), see
++        # coolchic/training/metrics/comma.py. Internal weighting is handled
++        # by the metric itself (COMMA_* env vars).
++        dist_weight = {"comma": 1.0}
++
+     else:
+         raise argparse.ArgumentTypeError(f"Unknown --tune. Found {args.tune}")
+ 
